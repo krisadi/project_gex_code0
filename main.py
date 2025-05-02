@@ -5,6 +5,9 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import WebBaseLoader, PyPDFLoader, Docx2txtLoader
 from langchain_community.embeddings import OllamaEmbeddings
+from langchain_core.messages import AIMessageChunk
+from langchain_ollama.chat_models import ChatOllama
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_community.llms import Ollama
 from langchain.chains import RetrievalQA
 from langchain_community.tools import DuckDuckGoSearchRun
@@ -14,6 +17,7 @@ import hashlib
 import yaml
 from pathlib import Path
 import json
+import datetime
 # import requests  # MCP related import
 
 print("Starting the application...")
@@ -24,11 +28,22 @@ load_dotenv()
 # Initialize components
 search = DuckDuckGoSearchRun()
 embeddings = OllamaEmbeddings(model='nomic-embed-text')
-llm = Ollama(model="deepseek-r1:8b", temperature=0)
+llm = Ollama(model="deepseek-r1:8b", temperature=0.7)
+
+
+
 
 # MCP Server configuration
 # MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000")
 # MCP_API_KEY = os.getenv("MCP_API_KEY", "your-api-key-here")  # Default key for local development
+
+# Initialize session state for conversation history
+if "conversation_history" not in st.session_state:
+    st.session_state.conversation_history = []
+if "current_conversation" not in st.session_state:
+    st.session_state.current_conversation = []
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
 
 # Authentication functions
 def check_password():
@@ -109,8 +124,8 @@ def process_web_url(url):
         loader = WebBaseLoader(url)
         docs = loader.load()
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
+        chunk_size=8000,
+        chunk_overlap=50
         )
         splits = text_splitter.split_documents(docs)
         return FAISS.from_documents(splits, embeddings)
@@ -127,7 +142,7 @@ def refine_query_with_pdf(query, vector_store):
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
-        retriever=vector_store.as_retriever()
+        retriever=vector_store.as_retriever(),
     )
     
     # Get context from PDFs
@@ -193,8 +208,18 @@ def get_agent_response(query, vector_store):
         print(f"Search failed: {e}")
         web_results = refined_query
     
-    # Get web search results using the refined query
-    # web_results = search.run(refined_query)
+
+
+    
+    # Add to current conversation
+    st.session_state.current_conversation.append({
+        "role": "user",
+        "content": query,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    
+
+
     
     # Combine responses
     combined_prompt = f"""
@@ -212,38 +237,93 @@ def get_agent_response(query, vector_store):
     
     Web Search Results:
     {web_results}
+    
+    Past Conversation:
+    {st.session_state.current_conversation}
+    
     """
     
-    combined_response = llm.invoke(combined_prompt)
+    # Create a placeholder for the streaming response
+    response_placeholder = st.empty()
+    full_response = ""
     
-    return combined_response
+    # Stream the response
+    for chunk in llm.stream(combined_prompt):
+        if chunk:
+            full_response += chunk
+            response_placeholder.markdown(full_response + "▌", unsafe_allow_html=True)
+    
+    # Update the placeholder with the final response
+    response_placeholder.markdown(full_response, unsafe_allow_html=True)
+    
+    # Add assistant response to conversation
+    st.session_state.current_conversation.append({
+        "role": "assistant",
+        "content": full_response,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    
+    return full_response
+
+def reset_conversation():
+    """Reset the current conversation and save it to history."""
+    if st.session_state.current_conversation:
+        st.session_state.conversation_history.append({
+            "id": len(st.session_state.conversation_history) + 1,
+            "conversation": st.session_state.current_conversation.copy(),
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+    st.session_state.current_conversation = []
+    st.session_state.vector_store = None
 
 # Main app
 def main():
     st.title("Document Processing & Web Search Demo")
     
-    # Input section
-    st.header("Input")
-    query = st.text_input("Enter your query:")
-    uploaded_files = st.file_uploader("Upload documents (PDF or DOCX)", accept_multiple_files=True)
+    # Create tabs for different sections
+    tab1, tab2 = st.tabs(["Chat", "History"])
     
-    # Process documents
-    vector_store = None
-    if uploaded_files:
-        with st.spinner("Processing documents..."):
-            vector_store = process_documents(uploaded_files)
-            if vector_store:
-                st.success("Documents processed successfully!")
+    with tab1:
+        # Reset button
+        if st.button("Reset Conversation"):
+            reset_conversation()
+            st.rerun()
+        
+        # Input section
+        st.header("Input")
+        query = st.text_input("Enter your query:")
+        uploaded_files = st.file_uploader("Upload documents (PDF or DOCX)", accept_multiple_files=True)
+        
+        # Process documents
+        if uploaded_files:
+            with st.spinner("Processing documents..."):
+                st.session_state.vector_store = process_documents(uploaded_files)
+                if st.session_state.vector_store:
+                    st.success("Documents processed successfully!")
+        
+        # Display current conversation
+        st.header("Current Conversation")
+        for message in st.session_state.current_conversation:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"], unsafe_allow_html=True)
+                st.caption(message["timestamp"])
+        
+        # Query processing
+        if st.button("Submit Query"):
+            if query:
+                with st.spinner("Processing query..."):
+                    response = get_agent_response(query, st.session_state.vector_store)
+            else:
+                st.warning("Please enter a query.")
     
-    # Query processing
-    if st.button("Submit Query"):
-        if query:
-            with st.spinner("Processing query..."):
-                response = get_agent_response(query, vector_store)
-                st.write("Response:")
-                st.success(response)
-        else:
-            st.warning("Please enter a query.")
+    with tab2:
+        st.header("Conversation History")
+        for conversation in reversed(st.session_state.conversation_history):
+            with st.expander(f"Conversation {conversation['id']} - {conversation['timestamp']}"):
+                for message in conversation["conversation"]:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"], unsafe_allow_html=True)
+                        st.caption(message["timestamp"])
 
 # Run the app with authentication
 if not check_password():
