@@ -4,15 +4,17 @@ from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import WebBaseLoader, PyPDFLoader, Docx2txtLoader
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.llms import Ollama
 from langchain.chains import RetrievalQA
 from langchain_community.tools import DuckDuckGoSearchRun
+from duckduckgo_search import DDGS
 import tempfile
 import hashlib
 import yaml
 from pathlib import Path
-import requests
 import json
+# import requests  # MCP related import
 
 print("Starting the application...")
 
@@ -21,12 +23,12 @@ load_dotenv()
 
 # Initialize components
 search = DuckDuckGoSearchRun()
-embeddings = OpenAIEmbeddings()
-llm = ChatOpenAI(temperature=0)
+embeddings = OllamaEmbeddings(model='nomic-embed-text')
+llm = Ollama(model="deepseek-r1:8b", temperature=0)
 
 # MCP Server configuration
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000")
-MCP_API_KEY = os.getenv("MCP_API_KEY", "your-api-key-here")  # Default key for local development
+# MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000")
+# MCP_API_KEY = os.getenv("MCP_API_KEY", "your-api-key-here")  # Default key for local development
 
 # Authentication functions
 def check_password():
@@ -138,54 +140,70 @@ def refine_query_with_pdf(query, vector_store):
     
     Original query: {query}
     
-    Please provide a refined search query that combines the PDF context with the original query to get more specific and relevant web search results.
+    Please provide a refined search query that combines the PDF context with the original query to get more specific and relevant web search results. The search query should be concise and to the point.
     """
     
     # Get the refined query from the LLM
-    refined_query = llm.invoke(refined_prompt).content
+    refined_query = llm.invoke(refined_prompt)
+    
+    
+    
     return refined_query, pdf_context
 
-def call_mcp_server(query, context=None):
-    """Call the MCP server with the query and optional context."""
-    try:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {MCP_API_KEY}"
-        }
-        
-        payload = {
-            "query": query,
-            "context": context if context else ""
-        }
-        
-        response = requests.post(
-            f"{MCP_SERVER_URL}/query",
-            headers=headers,
-            json=payload
-        )
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.error(f"MCP Server Error: {response.status_code} - {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"Error calling MCP server: {str(e)}")
-        return None
+# def call_mcp_server(query, context=None):
+#     """Call the MCP server with the query and optional context."""
+#     try:
+#         headers = {
+#             "Content-Type": "application/json",
+#             "Authorization": f"Bearer {MCP_API_KEY}"
+#         }
+#         
+#         payload = {
+#             "query": query,
+#             "context": context if context else ""
+#         }
+#         
+#         response = requests.post(
+#             f"{MCP_SERVER_URL}/query",
+#             headers=headers,
+#             json=payload
+#         )
+#         
+#         if response.status_code == 200:
+#             return response.json()
+#         else:
+#             st.error(f"MCP Server Error: {response.status_code} - {response.text}")
+#             return None
+#     except Exception as e:
+#         st.error(f"Error calling MCP server: {str(e)}")
+#         return None
 
 def get_agent_response(query, vector_store):
-    """Get response from the agent using both PDF knowledge, web search, and MCP server."""
+    """Get response from the agent using both PDF knowledge and web search."""
     # First, refine the query using PDF content
     refined_query, pdf_context = refine_query_with_pdf(query, vector_store)
     
-    # Get web search results using the refined query
-    web_results = search.run(refined_query)
+    try:
+        with DDGS() as ddgs:
+            web_results = ddgs.text(refined_query)
+            for result in web_results:
+                print(result)
+            web_results = json.dumps(web_results)
+    except Exception as e:
+        print(f"Search failed: {e}")
+        web_results = refined_query
     
-    # Call MCP server with the refined query and context
-    mcp_response = call_mcp_server(refined_query, pdf_context)
+    # Get web search results using the refined query
+    # web_results = search.run(refined_query)
     
     # Combine responses
-    combined_response = f"""
+    combined_prompt = f"""
+    You are a helpful assistant that can answer questions and help with tasks.
+    Based on the following context make a summary of the information and answer the question.
+    
+    Original query:
+    {query}
+    
     PDF Context:
     {pdf_context}
     
@@ -194,28 +212,20 @@ def get_agent_response(query, vector_store):
     
     Web Search Results:
     {web_results}
-    
-    MCP Server Response:
-    {mcp_response['answer'] if mcp_response else 'No MCP response available'}
-    Sources: {', '.join(mcp_response['sources']) if mcp_response else 'None'}
     """
+    
+    combined_response = llm.invoke(combined_prompt)
+    
     return combined_response
 
 # Main app
 def main():
-    st.title("MCP Web Search & Document Processing Demo")
+    st.title("Document Processing & Web Search Demo")
     
     # Input section
     st.header("Input")
     query = st.text_input("Enter your query:")
     uploaded_files = st.file_uploader("Upload documents (PDF or DOCX)", accept_multiple_files=True)
-    
-    # MCP Server status
-    if MCP_API_KEY:
-        st.info("MCP Server integration is enabled")
-        st.info(f"Server URL: {MCP_SERVER_URL}")
-    else:
-        st.warning("MCP Server integration is disabled - MCP_API_KEY not set")
     
     # Process documents
     vector_store = None

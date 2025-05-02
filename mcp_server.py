@@ -3,7 +3,8 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.llms import Ollama
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
@@ -14,8 +15,8 @@ load_dotenv()
 app = FastAPI(title="MCP Server")
 
 # Initialize components
-embeddings = OpenAIEmbeddings()
-llm = ChatOpenAI(temperature=0)
+embeddings = OllamaEmbeddings(model="llama2")
+llm = Ollama(model="llama2", temperature=0)
 
 # API Key validation
 def verify_api_key(api_key: str = Header(None)):
