@@ -1,10 +1,56 @@
-# Python-generated files
+# Environment variables
+.env
+
+# Data files and directories
+data/
+*.csv
+*.xlsx
+*.xls
+*.json
+
+investment_records/
+*.pdf
+*.doc
+*.docx
+
+# Python
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 build/
+develop-eggs/
 dist/
-wheels/
-*.egg-info
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Local development
+.DS_Store
+Thumbs.db
 
 # Virtual environments
 .venv

@@ -1,9 +1,25 @@
 admin: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
-
 users:
   admin:
-    username: admin
     password_hash: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+    username: admin
   default:
-    username: user
     password_hash: 04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb
+    username: user
+  jeremy:
+    password: 73ecb4b9d82c620a68d517119881d21eaaf808307da44ea47836893e551f9d51
+    profile:
+      age: 57
+      city: Boulder
+      financial_goals:
+      - Investment
+      - Retirement
+      first_name: Jeremy
+      income: 5000000
+      investment_preferences:
+      - Mutual Funds
+      - Real Estate
+      last_name: White
+      name: Jeremy White
+      risk_tolerance: high
+      country: United States
