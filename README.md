@@ -119,6 +119,10 @@ The Financial Assistant is a Streamlit-based web application that combines AI-po
    ```bash
    streamlit run main.py
    ```
+6. setup using uv and run:
+    ```bash
+    uv run python -m streamlit run main.py
+    ```
 
 ## Usage
 
