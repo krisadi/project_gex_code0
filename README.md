@@ -1,6 +1,9 @@
 # Financial Assistant Application
 
 A comprehensive financial advisory system that provides personalized financial advice, investment opportunities, and account management based on user profiles and transaction history.
+Dataset: https://www.kaggle.com/datasets/priyamchoksi/credit-card-transactions-dataset
+
+
 
 ## Table of Contents
 1. [Overview](#overview)
@@ -169,6 +172,7 @@ The Financial Assistant is a Streamlit-based web application that combines AI-po
 - In-memory caching
 - Real-time analysis
 - Historical tracking
+- create a folder data/###.csv (Download from https://www.kaggle.com/datasets/priyamchoksi/credit-card-transactions-dataset)
 
 ## API Integration
 
