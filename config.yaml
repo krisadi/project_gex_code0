@@ -6,11 +6,28 @@ users:
   default:
     password_hash: 04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb
     username: user
+  jennifer:
+    password: 9ce8db922a8f4a7abd859adee70bd8b7a63321265487da54cf4bed6a69eb3e1b
+    profile:
+      age: 36
+      city: Moravian Falls
+      country: United States
+      financial_goals:
+      - Investment
+      first_name: jennifer
+      income: 200000
+      investment_preferences:
+      - Mutual Funds
+      - Stocks
+      last_name: banks
+      name: jennifer
+      risk_tolerance: medium
   jeremy:
     password: 73ecb4b9d82c620a68d517119881d21eaaf808307da44ea47836893e551f9d51
     profile:
       age: 57
       city: Boulder
+      country: United States
       financial_goals:
       - Investment
       - Retirement
@@ -22,4 +39,3 @@ users:
       last_name: White
       name: Jeremy White
       risk_tolerance: high
-      country: United States
