@@ -78,7 +78,7 @@ if "user_profile" not in st.session_state:
         "first_name": "",
         "last_name": "",
         "city": "",
-        "country": ""
+        "country": "United States"
     }
 if "user_transactions" not in st.session_state:
     st.session_state.user_transactions = None
@@ -98,6 +98,7 @@ def load_credentials():
                         "first_name": "Admin",
                         "last_name": "User",
                         "city": "Default City",
+                        "country": "United States",
                         "age": 30,
                         "income": 50000,
                         "financial_goals": ["Retirement", "Investment"],
@@ -134,6 +135,7 @@ def signup():
         first_name = st.text_input("First Name")
         last_name = st.text_input("Last Name")
         city = st.text_input("City")
+        country = st.text_input("Country", value="United States")
         age = st.number_input("Age", min_value=18, max_value=100)
         income = st.number_input("Annual Income", min_value=0)
         financial_goals = st.multiselect(
@@ -167,6 +169,7 @@ def signup():
                     "first_name": first_name,
                     "last_name": last_name,
                     "city": city,
+                    "country": country,
                     "age": age,
                     "income": income,
                     "financial_goals": financial_goals,
@@ -250,8 +253,8 @@ def load_transaction_data():
         st.error(f"Error loading transaction data: {str(e)}")
         return None
 
-def get_user_transactions(df, first_name, last_name, city):
-    """Extract transactions for a specific user based on first name, last name, and city."""
+def get_user_transactions(df, first_name, last_name, city, country):
+    """Extract transactions for a specific user based on first name, last name, city, and country."""
     try:
         # Filter transactions for the specific user
         user_transactions = df[
@@ -287,29 +290,50 @@ def get_user_transactions(df, first_name, last_name, city):
 
 def get_account_summary(query, df):
     """Generate account summary from transaction data."""
-    if df is None:
-        return "No transaction data available."
     
-    # Calculate summary statistics
-    total_transactions = len(df)
-    total_spent = df['amt'].str.replace('$', '').str.replace(',', '').astype(float).sum()
-    avg_transaction = total_spent / total_transactions if total_transactions > 0 else 0
-    
-    # Get top categories
-    top_categories = df['category'].value_counts().to_dict()
-    
-    # Get recent transactions
-    recent_transactions = df.to_dict('records')
-    
-    summary = {
-        "total_transactions": total_transactions,
-        "total_spent": f"${total_spent:,.2f}",
-        "average_transaction": f"${avg_transaction:,.2f}",
-        "top_categories": top_categories,
-        "recent_transactions": recent_transactions
-    }
-    
-    return f"Account Summary:\n{json.dumps(summary, indent=2)}"
+    try:
+        if df is None:
+            return "No transaction data available."
+        
+        # Calculate summary statistics
+        total_transactions = len(df)
+        total_spent = df['amt'].str.replace('$', '').str.replace(',', '').astype(float).sum()
+        avg_transaction = total_spent / total_transactions if total_transactions > 0 else 0
+        
+        # Get top categories
+        top_categories = df['category'].value_counts().to_dict()
+        
+        # Get recent transactions
+        recent_transactions = df.head(100).to_dict('records')
+        
+        summary = {
+            "total_transactions": total_transactions,
+            "total_spent": f"${total_spent:,.2f}",
+            "average_transaction": f"${avg_transaction:,.2f}",
+            "top_categories": top_categories,
+        }
+        
+        advice_prompt = f"""
+            You are a financial advisor. Please answer the user's query the you can :
+            
+            User Query: {query}
+            
+            Account Summary:
+            {summary}
+            
+            """        
+            
+        response_placeholder = st.empty()
+        full_response = "Account Summary:\n"
+        for chunk in llm.stream(advice_prompt):
+            if chunk:
+                full_response += chunk
+                response_placeholder.markdown(full_response)    
+        
+        return full_response
+
+    except Exception as e:
+        return f"Error generating account summary: {str(e)}"
 
 def save_investment_opportunities(investment_opportunities, user_profile, query, final_advice, conversation_history):
     """Save investment opportunities and related information to a JSON file."""
@@ -586,7 +610,8 @@ def get_agent_response(query):
             st.session_state.transaction_data,
             st.session_state.user_profile['first_name'],
             st.session_state.user_profile['last_name'],
-            st.session_state.user_profile['city']
+            st.session_state.user_profile['city'],
+            st.session_state.user_profile['country']
         )
     
     # Initialize the agent if not already done
@@ -706,7 +731,8 @@ def update_user_profile():
                     st.session_state.transaction_data,
                     first_name,
                     last_name,
-                    city
+                    city,
+                    country
                 )
             st.success("Profile updated successfully!")
 
